@@ -1,4 +1,4 @@
-import { EBAY_LOCALE, EBAY_MARKETPLACE, type EbayConfig } from "./config";
+import { EBAY_CURRENCY, EBAY_LOCALE, EBAY_MARKETPLACE, type EbayConfig } from "./config";
 import { getAppToken } from "./oauth";
 
 type Fetch = typeof fetch;
@@ -133,6 +133,57 @@ export class EbayApi {
 
   optInToBusinessPolicies() {
     return this.call("POST", `/sell/account/v1/program/opt_in`, { programType: "SELLING_POLICY_MANAGEMENT" });
+  }
+
+  /** Create one basic postage, payment and returns policy so the seller can publish. Idempotent by name. */
+  async createStarterPolicies(): Promise<{ fulfillmentPolicyId: string; paymentPolicyId: string; returnPolicyId: string }> {
+    const cat = [{ name: "ALL_EXCLUDING_MOTORS_VEHICLES" }];
+    const existing = await this.listPolicies();
+
+    const fulfillmentPolicyId =
+      existing.fulfillment.find((p) => p.name === "Standard postage")?.id ??
+      (await this.createPolicy<{ fulfillmentPolicyId: string }>("fulfillment_policy", {
+        name: "Standard postage",
+        marketplaceId: EBAY_MARKETPLACE,
+        categoryTypes: cat,
+        handlingTime: { value: 1, unit: "DAY" },
+        shippingOptions: [
+          {
+            optionType: "DOMESTIC",
+            costType: "FLAT_RATE",
+            shippingServices: [
+              { sortOrder: 1, shippingServiceCode: "UK_RoyalMailSecondClassStandard", shippingCost: { value: "3.49", currency: EBAY_CURRENCY }, freeShipping: false },
+            ],
+          },
+        ],
+      })).fulfillmentPolicyId;
+
+    const paymentPolicyId =
+      existing.payment.find((p) => p.name === "Standard payment")?.id ??
+      (await this.createPolicy<{ paymentPolicyId: string }>("payment_policy", {
+        name: "Standard payment",
+        marketplaceId: EBAY_MARKETPLACE,
+        categoryTypes: cat,
+      })).paymentPolicyId;
+
+    const returnPolicyId =
+      existing.return.find((p) => p.name === "30-day returns")?.id ??
+      (await this.createPolicy<{ returnPolicyId: string }>("return_policy", {
+        name: "30-day returns",
+        marketplaceId: EBAY_MARKETPLACE,
+        categoryTypes: cat,
+        returnsAccepted: true,
+        returnPeriod: { value: 30, unit: "DAY" },
+        returnShippingCostPayer: "BUYER",
+        refundMethod: "MONEY_BACK",
+      })).returnPolicyId;
+
+    return { fulfillmentPolicyId, paymentPolicyId, returnPolicyId };
+  }
+
+  private async createPolicy<T>(kind: "fulfillment_policy" | "payment_policy" | "return_policy", body: unknown): Promise<T> {
+    const r = await this.call<T>("POST", `/sell/account/v1/${kind}`, body);
+    return r.data;
   }
 
   // ---- Taxonomy (application token) ----

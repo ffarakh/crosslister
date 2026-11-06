@@ -13,6 +13,11 @@ type Status = {
   locations?: { key: string; name: string }[];
 };
 
+function noPolicies(s: Status): boolean {
+  const p = s.policies;
+  return !!p && (p.fulfillment.length + p.payment.length + p.return.length) === 0;
+}
+
 export default function Connections() {
   const [s, setS] = useState<Status | null>(null);
   const [defaults, setDefaults] = useState<Record<string, string>>({});
@@ -73,12 +78,18 @@ export default function Connections() {
             {s.policyError ? (
               <div className="warnbox">
                 <p>eBay couldn't return your business policies: {s.policyError}</p>
-                <p>If you haven't opted in to business policies yet, do that first, then create postage, payment and returns policies in eBay Seller Hub.</p>
+                <p>If you haven't opted in to business policies yet, do that first.</p>
                 <button onClick={() => post("/api/ebay/optin")}>Opt in to business policies</button>
               </div>
             ) : (
               <>
                 <p className="muted">Defaults applied to new items (changeable per item).</p>
+                {noPolicies(s) && (
+                  <div className="warnbox">
+                    <p>You have no business policies yet. Create a basic set (standard postage, payment, 30-day returns) in one click — you can fine-tune them in eBay later.</p>
+                    <button className="primary" onClick={() => post("/api/ebay/starter-policies")}>Create starter policies</button>
+                  </div>
+                )}
                 {sel("fulfillmentPolicyId", "Postage policy", s.policies?.fulfillment ?? [])}
                 {sel("paymentPolicyId", "Payment policy", s.policies?.payment ?? [])}
                 {sel("returnPolicyId", "Returns policy", s.policies?.return ?? [])}
