@@ -169,13 +169,10 @@ export class EbayApi {
     const returnPolicyId =
       existing.return.find((p) => p.name === "30-day returns")?.id ??
       (await this.createPolicy<{ returnPolicyId: string }>("return_policy", {
-        name: "30-day returns",
+        name: "No returns",
         marketplaceId: EBAY_MARKETPLACE,
         categoryTypes: cat,
-        returnsAccepted: true,
-        returnPeriod: { value: 30, unit: "DAY" },
-        returnShippingCostPayer: "BUYER",
-        refundMethod: "MONEY_BACK",
+        returnsAccepted: false,
       })).returnPolicyId;
 
     return { fulfillmentPolicyId, paymentPolicyId, returnPolicyId };

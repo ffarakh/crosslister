@@ -86,7 +86,7 @@ export default function Connections() {
                 <p className="muted">Defaults applied to new items (changeable per item).</p>
                 {noPolicies(s) && (
                   <div className="warnbox">
-                    <p>You have no business policies yet. Create a basic set (standard postage, payment, 30-day returns) in one click — you can fine-tune them in eBay later.</p>
+                    <p>You have no business policies yet. Create a basic set (standard postage, payment, no returns) in one click — you can fine-tune them in eBay later.</p>
                     <button className="primary" onClick={() => post("/api/ebay/starter-policies")}>Create starter policies</button>
                   </div>
                 )}
