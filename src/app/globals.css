@@ -161,3 +161,75 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .fieldlabel { display: block; font-size: 0.85rem; font-weight: 600; }
 .fieldlabel input { margin-top: 0.3rem; font-weight: 400; }
 .auth-box .big { width: 100%; }
+
+/* ======== Visual polish pass ======== */
+:root {
+  --shadow-sm: 0 1px 2px rgba(20,30,25,0.06), 0 1px 3px rgba(20,30,25,0.05);
+  --shadow-md: 0 4px 14px rgba(20,30,25,0.08);
+  --shadow-lg: 0 18px 40px rgba(20,30,25,0.14);
+  --accent-soft: #e8f1ec;
+}
+@media (prefers-color-scheme: dark) { :root { --accent-soft: #1c2b25; } }
+
+body {
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  background-image: radial-gradient(1100px 500px at 100% -10%, var(--accent-soft), transparent 60%);
+  background-attachment: fixed;
+}
+h1, h2, .brand { font-family: "Inter", system-ui, sans-serif; letter-spacing: -0.02em; }
+
+/* Buttons: smoother, with motion */
+button, .button { transition: transform .06s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease; }
+button:hover:not(:disabled), .button:hover { box-shadow: var(--shadow-sm); }
+button:active:not(:disabled) { transform: translateY(1px); }
+.primary { box-shadow: 0 1px 0 rgba(0,0,0,0.04); }
+.primary:hover:not(:disabled) { box-shadow: var(--shadow-md); }
+.big { border-radius: 10px; }
+
+/* Header: sticky, blurred */
+.topbar {
+  position: sticky; top: 0; z-index: 30;
+  background: color-mix(in srgb, var(--card) 86%, transparent);
+  backdrop-filter: saturate(1.4) blur(10px);
+}
+
+/* Cards lift a little */
+.card { box-shadow: var(--shadow-sm); }
+
+/* Items page header */
+.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1.3rem; }
+.page-head .sub { color: var(--muted); font-size: 0.9rem; margin: 0.2rem 0 0; }
+.page-head h1 { margin: 0; }
+
+/* Item cards */
+.items { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.7rem; }
+.items li {
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 0.9rem 1.1rem; box-shadow: var(--shadow-sm);
+  transition: transform .1s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.items li:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.items a { display: flex; flex-direction: column; gap: 0.15rem; text-decoration: none; color: var(--ink); }
+.items a strong { font-size: 1.02rem; letter-spacing: -0.01em; }
+
+/* Empty state */
+.empty { text-align: center; padding: 3.5rem 1.5rem; background: var(--card); border: 1px dashed var(--line); border-radius: 18px; box-shadow: var(--shadow-sm); }
+.empty .ico { font-size: 2.4rem; display: block; margin-bottom: 0.6rem; }
+.empty h3 { margin: 0 0 0.3rem; }
+.empty p { color: var(--muted); margin: 0 auto 1.2rem; max-width: 42ch; }
+
+/* Loading skeletons */
+.skeleton { background: linear-gradient(90deg, var(--line) 25%, color-mix(in srgb, var(--line) 40%, transparent) 50%, var(--line) 75%); background-size: 200% 100%; animation: shimmer 1.3s infinite; border-radius: 10px; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+.sk-row { height: 66px; margin-bottom: 0.7rem; border-radius: 14px; }
+
+/* Status pills a touch bolder */
+.chip { font-weight: 500; }
+
+/* Login hero depth */
+.auth-hero { position: relative; overflow: hidden; }
+.auth-hero::after { content: ""; position: absolute; inset: 0; background: radial-gradient(600px 300px at 90% 10%, rgba(255,255,255,0.14), transparent 60%); pointer-events: none; }
+.auth-hero h1 { font-family: "Fraunces", Georgia, serif; letter-spacing: -0.01em; font-weight: 600; }
+.auth-box h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; letter-spacing: -0.01em; }
+.auth-box { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 1.6rem; box-shadow: var(--shadow-lg); }

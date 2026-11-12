@@ -16,6 +16,7 @@ export default function Items() {
   const router = useRouter();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState("");
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     fetch("/api/listings")
@@ -24,36 +25,64 @@ export default function Items() {
   }, []);
 
   async function create() {
+    setCreating(true);
     const j = await (await fetch("/api/listings", { method: "POST" })).json();
     if (j.id) router.push(`/listings/${j.id}`);
-    else setErr(j.error);
+    else {
+      setErr(j.error);
+      setCreating(false);
+    }
   }
 
   return (
     <main className="page">
-      <div className="row between">
-        <h1>Items</h1>
-        <button className="primary" onClick={create}>+ New item</button>
+      <div className="page-head">
+        <div>
+          <h1>Your items</h1>
+          <p className="sub">Create a listing once, publish it everywhere you're connected.</p>
+        </div>
+        <button className="primary big" onClick={create} disabled={creating}>{creating ? "Creating…" : "+ New item"}</button>
       </div>
+
       {err && <p className="err">{err}</p>}
-      {rows?.length === 0 && <p className="muted">No items yet. Create one and upload photos to start.</p>}
-      <ul className="items">
-        {rows?.map((r) => (
-          <li key={r.id}>
-            <Link href={`/listings/${r.id}`}>
-              <strong>{r.data.shared?.title || "Untitled item"}</strong>
-              <span className="muted">{formatPence(r.data.shared?.pricePence ?? null)}</span>
-            </Link>
-            <span className="chips">
-              {r.platform_listings.map((p) => (
-                <span key={p.platform} className={`chip s-${p.status}`}>
-                  {PLATFORM_LABEL[p.platform]}: {p.status}
-                </span>
-              ))}
-            </span>
-          </li>
-        ))}
-      </ul>
+
+      {rows === null && (
+        <div aria-hidden>
+          <div className="skeleton sk-row" />
+          <div className="skeleton sk-row" style={{ opacity: 0.7 }} />
+          <div className="skeleton sk-row" style={{ opacity: 0.4 }} />
+        </div>
+      )}
+
+      {rows?.length === 0 && (
+        <div className="empty">
+          <span className="ico">📦</span>
+          <h3>No items yet</h3>
+          <p>Add your first item, upload its photos, and Crosslister will help you list it across your marketplaces.</p>
+          <button className="primary big" onClick={create} disabled={creating}>{creating ? "Creating…" : "+ Create your first item"}</button>
+        </div>
+      )}
+
+      {rows && rows.length > 0 && (
+        <ul className="items">
+          {rows.map((r) => (
+            <li key={r.id}>
+              <Link href={`/listings/${r.id}`}>
+                <strong>{r.data.shared?.title || "Untitled item"}</strong>
+                <span className="muted">{formatPence(r.data.shared?.pricePence ?? null)}</span>
+              </Link>
+              <span className="chips">
+                {r.platform_listings.length === 0 && <span className="chip s-idle">draft</span>}
+                {r.platform_listings.map((p) => (
+                  <span key={p.platform} className={`chip s-${p.status}`}>
+                    {PLATFORM_LABEL[p.platform]}: {p.status}
+                  </span>
+                ))}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }
