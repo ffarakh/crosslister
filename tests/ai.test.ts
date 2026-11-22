@@ -79,7 +79,8 @@ describe("AI listing generation safeguards", () => {
     };
     const r = await callVisionModel([{ mediaType: "image/jpeg", base64: "AAAA" }], "Tested, fully working", f);
     expect(r.title).toBe(base.title);
-    expect(sent.tool_choice).toEqual({ type: "tool", name: "submit_listing_draft" });
+    expect(sent.tool_choice).toEqual({ type: "auto" });
+    expect(sent.tools[0].name).toBe("submit_listing_draft");
     expect(sent.messages[0].content[0]).toMatchObject({ type: "image", source: { type: "base64", media_type: "image/jpeg" } });
     expect(sent.messages[0].content.at(-1).text).toContain("Tested, fully working");
   });

@@ -85,7 +85,9 @@ Rules:
 - Do not say an item works, is genuine, or is complete unless a label proves it — ask instead.
 - UK English spelling. Factual, concise, no emojis, no hype words.
 - If unsure, leave the field empty and add a question or uncertainty.
-- Most items are brand new and sealed. If a barcode (EAN/UPC) or model number is legible, include it as an attribute so the exact product can be identified.`;
+- Assume the item is BRAND NEW and SEALED unless the photos clearly show otherwise; write the title and description on that basis. If the photos clearly show it opened, used or damaged, say so instead and add an uncertainty.
+- The seller offers NO WARRANTY and NO RETURNS. Never state or imply a warranty, guarantee or returns. You may add a brief "No warranty, sold as new and sealed." line to the description.
+- If a barcode (EAN/UPC) or model number is legible, include it as an attribute so the exact product can be identified.`;
 
 export interface ImageInput {
   mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif";
@@ -103,7 +105,7 @@ export async function callVisionModel(images: ImageInput[], sellerNotes: string,
       max_tokens: 2000,
       system: SYSTEM,
       tools: [TOOL],
-      tool_choice: { type: "tool", name: TOOL.name },
+      tool_choice: { type: "auto" },
       messages: [
         {
           role: "user",
@@ -111,7 +113,7 @@ export async function callVisionModel(images: ImageInput[], sellerNotes: string,
             ...images.map((i) => ({ type: "image", source: { type: "base64", media_type: i.mediaType, data: i.base64 } })),
             {
               type: "text",
-              text: `Draft a listing from these ${images.length} photo(s) of one item.${sellerNotes ? `\nFacts the seller has confirmed:\n${sellerNotes}` : ""}`,
+              text: `Draft a listing from these ${images.length} photo(s) of one item. Reply by calling the ${TOOL.name} tool with your draft — do not reply with plain text.${sellerNotes ? `\nFacts the seller has confirmed:\n${sellerNotes}` : ""}`,
             },
           ],
         },
@@ -122,7 +124,7 @@ export async function callVisionModel(images: ImageInput[], sellerNotes: string,
   const json = (await res.json()) as { content?: { type: string; input?: unknown }[]; error?: { message: string } };
   if (!res.ok) throw new Error(`AI request failed: ${json.error?.message ?? res.status}`);
   const block = json.content?.find((c) => c.type === "tool_use");
-  if (!block) throw new Error("AI returned no structured draft");
+  if (!block) throw new Error("The AI didn't return a structured draft. Please try again.");
   return AiResult.parse(block.input);
 }
 
