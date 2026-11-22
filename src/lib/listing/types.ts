@@ -108,6 +108,7 @@ export interface AiState {
   priceEstimate?: { lowPence: number; highPence: number; basis: string } | null;
   rrp?: { pricePence: number; source: string; url: string } | null;
   marketOffers?: { retailer: string; pricePence: number; url: string }[];
+  photoFeedback?: { verdict: "good" | "ok" | "poor"; notes: string[] } | null;
   categoryKeywords?: string[];
   generatedAt?: string;
 }

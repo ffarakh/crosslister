@@ -13,6 +13,7 @@ const base: AiResult = {
     { name: "Size", value: "Large", basis: "unknown" },
   ],
   visible_defects: ["Light scuffs on headband"],
+  photo_feedback: { verdict: "ok", notes: ["Add a photo of the back"] },
   category_keywords: ["over-ear headphones"],
   uncertainties: ["Whether the cable is included"],
   questions: ["Do they power on and pair?"],

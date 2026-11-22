@@ -252,3 +252,10 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .offers li { display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: center; font-size: 0.88rem; }
 .offers li a { text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .offers li span { font-weight: 600; }
+
+/* AI photo check */
+.photocheck { border-radius: 10px; padding: 0.55rem 0.8rem; margin: 0.5rem 0; border: 1px solid; }
+.photocheck ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+.pc-good { background: color-mix(in srgb, var(--ok) 12%, transparent); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.pc-ok { background: var(--warnbg); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.pc-poor { background: var(--errbg); border-color: color-mix(in srgb, var(--err) 45%, transparent); }

@@ -16,6 +16,7 @@ export const AiResult = z.object({
   brand: z.object({ value: z.string(), basis: Basis }),
   attributes: z.array(z.object({ name: z.string(), value: z.string(), basis: Basis })),
   visible_defects: z.array(z.string()),
+  photo_feedback: z.object({ verdict: z.enum(["good", "ok", "poor"]), notes: z.array(z.string()) }),
   category_keywords: z.array(z.string()),
   uncertainties: z.array(z.string()),
   questions: z.array(z.string()),
@@ -36,7 +37,7 @@ const TOOL = {
   description: "Submit a factual second-hand listing draft based only on the photos.",
   input_schema: {
     type: "object",
-    required: ["item_type", "title", "description", "brand", "attributes", "visible_defects", "category_keywords", "uncertainties", "questions"],
+    required: ["item_type", "title", "description", "brand", "attributes", "visible_defects", "photo_feedback", "category_keywords", "uncertainties", "questions"],
     properties: {
       item_type: { type: "string", description: "Plain item type, e.g. 'wireless over-ear headphones'" },
       title: { type: "string", description: "Factual title, UK English, max 80 characters. Only include brand/model/size if read from a label." },
@@ -67,6 +68,19 @@ const TOOL = {
         },
       },
       visible_defects: { type: "array", items: { type: "string" } },
+      photo_feedback: {
+        type: "object",
+        required: ["verdict", "notes"],
+        description: "Assess whether the uploaded photos are good enough to sell this item well.",
+        properties: {
+          verdict: { type: "string", enum: ["good", "ok", "poor"], description: "good = ready to list; ok = usable but improvable; poor = should reshoot" },
+          notes: {
+            type: "array",
+            items: { type: "string" },
+            description: "Up to 4 short, specific, constructive points on the photos: lighting, focus/blur, background clutter, whether all key angles/sides are shown, whether the box/label/barcode is legible, glare. If good, say briefly what's good.",
+          },
+        },
+      },
       category_keywords: { type: "array", items: { type: "string" }, description: "2-4 search phrases for marketplace category lookup" },
       uncertainties: { type: "array", items: { type: "string" }, description: "Things that could be wrong in this draft" },
       questions: {
@@ -212,6 +226,7 @@ export function applyAiResult(draft: ListingDraft, r: AiResult): ListingDraft {
     questions: [...new Set(questions)].slice(0, 6),
     uncertainties: r.uncertainties,
     visibleDefects: r.visible_defects,
+    photoFeedback: r.photo_feedback,
     categoryKeywords: r.category_keywords,
     priceEstimate:
       r.price_estimate && r.price_estimate.high_gbp > 0

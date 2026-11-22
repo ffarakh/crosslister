@@ -136,7 +136,7 @@ export default function EditorPage({ params }: { params: Promise<{ id: string }>
           <FieldShell label="Price" error={errFor(t, "pricePence")} extra={tag("pricePence")}>
             <PriceIn value={val("pricePence")} onChange={(v) => set("pricePence", v)} />
           </FieldShell>
-          <FieldShell label="Quantity" error={errFor(t, "quantity")} extra={tag("quantity")}>
+          <FieldShell label="Quantity" hint="How many you have to sell" error={errFor(t, "quantity")} extra={tag("quantity")}>
             <QtyIn value={val("quantity")} onChange={(v) => set("quantity", v)} />
           </FieldShell>
           <FieldShell label="Condition" error={errFor(t, "condition")} extra={tag("condition")}>
@@ -310,6 +310,12 @@ function AiPanel({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice: (p: n
   return (
     <div className="aipanel">
       {ai.itemType && <p><strong>Looks like:</strong> {ai.itemType}</p>}
+      {ai.photoFeedback && (
+        <div className={`photocheck pc-${ai.photoFeedback.verdict}`}>
+          <strong>📷 Photo check: {ai.photoFeedback.verdict === "good" ? "Good to go" : ai.photoFeedback.verdict === "ok" ? "Usable — could be better" : "Worth reshooting"}</strong>
+          {ai.photoFeedback.notes.length > 0 && <ul>{ai.photoFeedback.notes.map((n) => <li key={n}>{n}</li>)}</ul>}
+        </div>
+      )}
       {ai.questions.length > 0 && (
         <div><strong>Please confirm:</strong><ul>{ai.questions.map((q) => <li key={q}>{q}</li>)}</ul></div>
       )}
