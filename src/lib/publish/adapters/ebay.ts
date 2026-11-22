@@ -29,16 +29,35 @@ export function buildInventoryItem(r: ResolvedListing, photoUrls: string[]) {
   const aspects: Record<string, string[]> = {};
   for (const [k, v] of Object.entries(r.attributes)) if (v.trim()) aspects[k] = [v.trim()];
   if (r.brand.trim()) aspects["Brand"] = [r.brand.trim()];
+
+  // eBay requires a product identifier: Brand + MPN, or a GTIN (EAN/UPC).
+  // Supply the brand (fallback "Unbranded"), an MPN (from attributes or "Does Not Apply"),
+  // and any EAN/UPC the seller has, so eBay's BrandMPN/identifier check passes.
+  const findAttr = (...names: string[]) => {
+    for (const [k, v] of Object.entries(r.attributes)) {
+      if (names.some((n) => k.toLowerCase().replace(/[^a-z]/g, "") === n) && v.trim()) return v.trim();
+    }
+    return "";
+  };
+  const brand = r.brand.trim() || "Unbranded";
+  const mpn = findAttr("mpn", "manufacturerpartnumber") || findAttr("model") || "Does Not Apply";
+  const gtinRaw = findAttr("ean", "upc", "gtin", "eanupc", "barcode").replace(/\D/g, "");
+
+  const product: Record<string, unknown> = {
+    title: r.title.trim(),
+    description: r.description.trim(),
+    aspects,
+    imageUrls: photoUrls,
+    brand,
+    mpn,
+  };
+  if (gtinRaw.length === 13) product.ean = [gtinRaw];
+  else if (gtinRaw.length === 12) product.upc = [gtinRaw];
+
   return {
     availability: { shipToLocationAvailability: { quantity: r.quantity } },
     condition: EBAY_CONDITION[r.condition!],
-    product: {
-      title: r.title.trim(),
-      description: r.description.trim(),
-      aspects,
-      imageUrls: photoUrls,
-      ...(r.brand.trim() ? { brand: r.brand.trim() } : {}),
-    },
+    product,
     locale: EBAY_LOCALE,
   };
 }
