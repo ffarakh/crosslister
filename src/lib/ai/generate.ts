@@ -23,6 +23,11 @@ export const AiResult = z.object({
     .object({ low_gbp: z.number(), high_gbp: z.number(), basis: z.string() })
     .nullable()
     .optional(),
+  rrp: z.object({ price_gbp: z.number(), source: z.string(), url: z.string() }).nullable().optional(),
+  market_offers: z
+    .array(z.object({ retailer: z.string(), price_gbp: z.number(), url: z.string() }))
+    .optional()
+    .default([]),
 });
 export type AiResult = z.infer<typeof AiResult>;
 
@@ -71,8 +76,22 @@ const TOOL = {
       },
       price_estimate: {
         type: ["object", "null"],
-        description: "Optional rough UK second-hand price range. Null if you can't reasonably estimate.",
-        properties: { low_gbp: { type: "number" }, high_gbp: { type: "number" }, basis: { type: "string" } },
+        description: "Your suggested UK selling price range for this item as NEW, informed by your searches. Null only if you truly found nothing.",
+        properties: { low_gbp: { type: "number" }, high_gbp: { type: "number" }, basis: { type: "string", description: "One line citing the sources behind the range" } },
+      },
+      rrp: {
+        type: ["object", "null"],
+        description: "The item's recommended retail price (RRP) / typical full price new, from a manufacturer or major retailer. Null if not found.",
+        properties: { price_gbp: { type: "number" }, source: { type: "string", description: "Retailer/brand name" }, url: { type: "string" } },
+      },
+      market_offers: {
+        type: "array",
+        description: "Current prices to buy this item BRAND NEW from UK websites, cheapest first (up to 5). Each from a real search result. Empty if none found.",
+        items: {
+          type: "object",
+          required: ["retailer", "price_gbp", "url"],
+          properties: { retailer: { type: "string" }, price_gbp: { type: "number" }, url: { type: "string" } },
+        },
       },
     },
   },
@@ -202,6 +221,15 @@ export function applyAiResult(draft: ListingDraft, r: AiResult): ListingDraft {
             basis: r.price_estimate.basis,
           }
         : null,
+    rrp:
+      r.rrp && r.rrp.price_gbp > 0
+        ? { pricePence: Math.round(r.rrp.price_gbp * 100), source: r.rrp.source, url: r.rrp.url }
+        : null,
+    marketOffers: (r.market_offers ?? [])
+      .filter((o) => o.price_gbp > 0)
+      .map((o) => ({ retailer: o.retailer, pricePence: Math.round(o.price_gbp * 100), url: o.url }))
+      .sort((a, b) => a.pricePence - b.pricePence)
+      .slice(0, 5),
     generatedAt: new Date().toISOString(),
   };
   return next;

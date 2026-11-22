@@ -16,7 +16,8 @@ const base: AiResult = {
   category_keywords: ["over-ear headphones"],
   uncertainties: ["Whether the cable is included"],
   questions: ["Do they power on and pair?"],
-  price_estimate: { low_gbp: 60, high_gbp: 90, basis: "Typical used prices for similar items" },
+  price_estimate: { low_gbp: 60, high_gbp: 90, basis: "Based on current listings" },
+  market_offers: [],
 };
 
 describe("AI listing generation safeguards", () => {

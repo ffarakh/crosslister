@@ -106,8 +106,18 @@ export interface AiState {
   uncertainties: string[];
   visibleDefects: string[];
   priceEstimate?: { lowPence: number; highPence: number; basis: string } | null;
+  rrp?: { pricePence: number; source: string; url: string } | null;
+  marketOffers?: { retailer: string; pricePence: number; url: string }[];
   categoryKeywords?: string[];
   generatedAt?: string;
+}
+
+/** A current live eBay listing, fetched from the free Browse API (not stored). */
+export interface EbayComp {
+  title: string;
+  pricePence: number;
+  url: string;
+  condition: string;
 }
 
 export interface ListingDraft {

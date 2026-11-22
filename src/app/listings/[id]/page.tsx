@@ -198,6 +198,7 @@ export default function EditorPage({ params }: { params: Promise<{ id: string }>
         </div>}
         {aiErr && <p className="err">{aiErr}</p>}
         {draft.ai.generatedAt && <AiPanel draft={draft} onUsePrice={(p) => setSharedField("pricePence", p)} />}
+        {draft.ai.generatedAt && <PricingSection draft={draft} onUsePrice={(p) => setSharedField("pricePence", p)} />}
       </section>
 
       <section className="card">
@@ -318,14 +319,106 @@ function AiPanel({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice: (p: n
       {ai.uncertainties.length > 0 && (
         <div className="muted"><strong>Unsure about:</strong> {ai.uncertainties.join("; ")}</div>
       )}
+      <p className="muted small">Condition is never set by AI. Values marked "AI" aren't confirmed until you edit or confirm them.</p>
+    </div>
+  );
+}
+
+type Comps = { comps: { title: string; pricePence: number; url: string; condition: string }[]; min: number | null; median: number | null; count: number };
+
+function PricingSection({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice: (p: number) => void }) {
+  const ai = draft.ai;
+  const [comps, setComps] = useState<Comps | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const query = (draft.shared.brand ? draft.shared.brand + " " : "") + (ai.itemType || draft.shared.title || "");
+
+  async function loadComps() {
+    setLoading(true);
+    setErr("");
+    try {
+      const r = await fetch(`/api/ebay/comps?q=${encodeURIComponent(query.trim())}`);
+      const j = await r.json();
+      if (!r.ok) setErr(j.error || "Couldn't load eBay prices");
+      else setComps(j);
+    } catch {
+      setErr("Couldn't load eBay prices");
+    }
+    setLoading(false);
+  }
+
+  const hasMarket = (ai.marketOffers?.length ?? 0) > 0;
+  if (!ai.generatedAt) return null;
+
+  return (
+    <div className="pricing card-inset">
+      <h3 style={{ marginTop: 0 }}>💷 Pricing</h3>
+
       {ai.priceEstimate && (
-        <div className="estimate">
-          <strong>Price estimate (not verified):</strong> {formatPence(ai.priceEstimate.lowPence)}–{formatPence(ai.priceEstimate.highPence)}
-          <span className="muted small"> — {ai.priceEstimate.basis}</span>
-          <button className="link" onClick={() => onUsePrice(Math.round((ai.priceEstimate!.lowPence + ai.priceEstimate!.highPence) / 2))}>use midpoint</button>
+        <div className="price-head">
+          <div>
+            <span className="muted small">Suggested selling price (new)</span>
+            <div className="price-big">{formatPence(ai.priceEstimate.lowPence)}–{formatPence(ai.priceEstimate.highPence)}</div>
+            <span className="muted small">{ai.priceEstimate.basis}</span>
+          </div>
+          <button className="primary" onClick={() => onUsePrice(Math.round((ai.priceEstimate!.lowPence + ai.priceEstimate!.highPence) / 2))}>Use midpoint</button>
         </div>
       )}
-      <p className="muted small">Condition is never set by AI. Values marked "AI" aren't confirmed until you edit or confirm them.</p>
+
+      <div className="price-grid">
+        <div className="price-col">
+          <h4>RRP</h4>
+          {ai.rrp ? (
+            <p><strong>{formatPence(ai.rrp.pricePence)}</strong><br /><a href={ai.rrp.url} target="_blank" rel="noreferrer" className="small">{ai.rrp.source}</a></p>
+          ) : <p className="muted small">Not found</p>}
+        </div>
+
+        <div className="price-col">
+          <h4>Cheapest new online</h4>
+          {hasMarket ? (
+            <ul className="offers">
+              {ai.marketOffers!.map((o, i) => (
+                <li key={i}>
+                  <a href={o.url} target="_blank" rel="noreferrer">{o.retailer}</a>
+                  <span>{formatPence(o.pricePence)}</span>
+                  <button className="link" onClick={() => onUsePrice(o.pricePence)}>use</button>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="muted small">None found</p>}
+        </div>
+      </div>
+
+      <div className="price-col">
+        <div className="row between">
+          <h4>Current eBay listings</h4>
+          <button onClick={loadComps} disabled={loading || !query.trim()}>{loading ? "Searching…" : comps ? "Refresh" : "Find eBay prices"}</button>
+        </div>
+        {err && <p className="err small">{err}</p>}
+        {comps && (
+          <>
+            {comps.count === 0 ? (
+              <p className="muted small">No current eBay listings found{draft.platforms.ebay.fields ? "" : ""} (sandbox has little data — this fills out on real eBay).</p>
+            ) : (
+              <>
+                <p className="small">
+                  {comps.count} listings · cheapest <strong>{formatPence(comps.min!)}</strong> · typical <strong>{formatPence(comps.median!)}</strong>
+                  {comps.median != null && <button className="link" onClick={() => onUsePrice(comps.median!)}>use typical</button>}
+                </p>
+                <ul className="offers">
+                  {comps.comps.slice(0, 6).map((c, i) => (
+                    <li key={i}>
+                      <a href={c.url} target="_blank" rel="noreferrer" title={c.title}>{c.title.slice(0, 42)}{c.title.length > 42 ? "…" : ""}</a>
+                      <span>{formatPence(c.pricePence)}</span>
+                      <button className="link" onClick={() => onUsePrice(c.pricePence)}>use</button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

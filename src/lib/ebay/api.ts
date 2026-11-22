@@ -189,6 +189,26 @@ export class EbayApi {
     return (await this.call<T>("GET", path, undefined, token)).data;
   }
 
+  /** Current live GB listings for a search term (free Browse API, application token). */
+  async browseSearch(q: string, newOnly = true): Promise<{ title: string; pricePence: number; url: string; condition: string }[]> {
+    type B = {
+      itemSummaries?: { title?: string; price?: { value?: string; currency?: string }; itemWebUrl?: string; condition?: string }[];
+    };
+    const filter = newOnly ? "&filter=" + encodeURIComponent("conditions:{NEW},buyingOptions:{FIXED_PRICE}") : "";
+    const d = await this.appCall<B>(
+      `/buy/browse/v1/item_summary/search?q=${encodeURIComponent(q)}&limit=12&sort=price${filter}`,
+    );
+    return (d.itemSummaries ?? [])
+      .filter((s) => s.price?.value && (s.price.currency ?? "GBP") === "GBP")
+      .map((s) => ({
+        title: s.title ?? "",
+        pricePence: Math.round(Number(s.price!.value) * 100),
+        url: s.itemWebUrl ?? "",
+        condition: s.condition ?? "",
+      }))
+      .filter((s) => s.pricePence > 0);
+  }
+
   async categoryTreeId() {
     const d = await this.appCall<{ categoryTreeId: string }>(
       `/commerce/taxonomy/v1/get_default_category_tree_id?marketplace_id=${EBAY_MARKETPLACE}`,
