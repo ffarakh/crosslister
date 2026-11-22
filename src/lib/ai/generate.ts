@@ -87,45 +87,63 @@ Rules:
 - If unsure, leave the field empty and add a question or uncertainty.
 - Assume the item is BRAND NEW and SEALED unless the photos clearly show otherwise; write the title and description on that basis. If the photos clearly show it opened, used or damaged, say so instead and add an uncertainty.
 - The seller offers NO WARRANTY and NO RETURNS. Never state or imply a warranty, guarantee or returns. You may add a brief "No warranty, sold as new and sealed." line to the description.
-- If a barcode (EAN/UPC) or model number is legible, include it as an attribute so the exact product can be identified.`;
+- If a barcode (EAN/UPC) or model number is legible, include it as an attribute so the exact product can be identified.
+- PRICE: use web search to identify the exact product and find its current UK price as a NEW item — its RRP and what it currently sells for new on eBay UK and major UK retailers. Base price_estimate on those figures and name the sources (shops/sites) in the basis field. If you genuinely cannot find it, set price_estimate to null and say so in an uncertainty. Never guess a price without searching.`;
 
 export interface ImageInput {
   mediaType: "image/jpeg" | "image/png" | "image/webp" | "image/gif";
   base64: string;
 }
 
+type Block = { type: string; name?: string; input?: unknown };
+type ApiResponse = { content?: Block[]; stop_reason?: string; error?: { message: string } };
+
 export async function callVisionModel(images: ImageInput[], sellerNotes: string, f: typeof fetch = fetch): Promise<AiResult> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error("ANTHROPIC_API_KEY is not set");
-  const res = await f("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
-      max_tokens: 2000,
-      system: SYSTEM,
-      tools: [TOOL],
-      tool_choice: { type: "auto" },
-      messages: [
+
+  const messages: { role: string; content: unknown }[] = [
+    {
+      role: "user",
+      content: [
+        ...images.map((i) => ({ type: "image", source: { type: "base64", media_type: i.mediaType, data: i.base64 } })),
         {
-          role: "user",
-          content: [
-            ...images.map((i) => ({ type: "image", source: { type: "base64", media_type: i.mediaType, data: i.base64 } })),
-            {
-              type: "text",
-              text: `Draft a listing from these ${images.length} photo(s) of one item. Reply by calling the ${TOOL.name} tool with your draft — do not reply with plain text.${sellerNotes ? `\nFacts the seller has confirmed:\n${sellerNotes}` : ""}`,
-            },
-          ],
+          type: "text",
+          text: `Draft a listing from these ${images.length} photo(s) of one item. Search the web to identify the exact product and its current UK price as new, then reply by calling the ${TOOL.name} tool with your draft — the tool call must be your final step.${sellerNotes ? `\nFacts the seller has confirmed:\n${sellerNotes}` : ""}`,
         },
       ],
-    }),
-    signal: AbortSignal.timeout(90_000),
-  });
-  const json = (await res.json()) as { content?: { type: string; input?: unknown }[]; error?: { message: string } };
-  if (!res.ok) throw new Error(`AI request failed: ${json.error?.message ?? res.status}`);
-  const block = json.content?.find((c) => c.type === "tool_use");
-  if (!block) throw new Error("The AI didn't return a structured draft. Please try again.");
-  return AiResult.parse(block.input);
+    },
+  ];
+
+  // The model may run several web searches (handled server-side) before calling our tool.
+  // Loop to continue through any pause_turn pauses until it emits the submit_listing_draft call.
+  for (let step = 0; step < 5; step++) {
+    const res = await f("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5",
+        max_tokens: 3000,
+        system: SYSTEM,
+        tools: [TOOL, { type: "web_search_20250305", name: "web_search", max_uses: 4, user_location: { type: "approximate", country: "GB" } }],
+        tool_choice: { type: "auto" },
+        messages,
+      }),
+      signal: AbortSignal.timeout(120_000),
+    });
+    const json = (await res.json()) as ApiResponse;
+    if (!res.ok) throw new Error(`AI request failed: ${json.error?.message ?? res.status}`);
+
+    const draft = json.content?.find((c) => c.type === "tool_use" && c.name === TOOL.name);
+    if (draft) return AiResult.parse(draft.input);
+
+    if (json.stop_reason === "pause_turn" && json.content) {
+      messages.push({ role: "assistant", content: json.content });
+      continue; // resume the paused search turn
+    }
+    break; // ended without calling the tool
+  }
+  throw new Error("The AI didn't return a structured draft. Please try again.");
 }
 
 const provOf = (b: z.infer<typeof Basis>): Provenance | null =>
