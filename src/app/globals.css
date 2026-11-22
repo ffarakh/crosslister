@@ -233,3 +233,10 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .auth-hero h1 { font-family: "Fraunces", Georgia, serif; letter-spacing: -0.01em; font-weight: 600; }
 .auth-box h2 { font-family: "Fraunces", Georgia, serif; font-weight: 600; letter-spacing: -0.01em; }
 .auth-box { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 1.6rem; box-shadow: var(--shadow-lg); }
+
+/* Onboarding banner */
+.banner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: 14px; padding: 0.9rem 1.1rem; margin-bottom: 1.2rem; }
+.banner strong { display: block; }
+.banner p { margin: 0.1rem 0 0; }

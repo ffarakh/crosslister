@@ -17,11 +17,16 @@ export default function Items() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [err, setErr] = useState("");
   const [creating, setCreating] = useState(false);
+  const [ebayConnected, setEbayConnected] = useState<boolean | null>(null);
 
   useEffect(() => {
     fetch("/api/listings")
       .then((r) => r.json())
       .then((j) => (j.error ? setErr(j.error) : setRows(j.listings)));
+    fetch("/api/ebay/status")
+      .then((r) => r.json())
+      .then((s) => setEbayConnected(Boolean(s.connected)))
+      .catch(() => setEbayConnected(null));
   }, []);
 
   async function create() {
@@ -45,6 +50,16 @@ export default function Items() {
       </div>
 
       {err && <p className="err">{err}</p>}
+
+      {ebayConnected === false && (
+        <div className="banner">
+          <div>
+            <strong>Connect your eBay account to start publishing.</strong>
+            <p className="small muted">You can build listings now, but you'll need eBay connected to publish them.</p>
+          </div>
+          <Link href="/connections" className="button primary">Connect eBay</Link>
+        </div>
+      )}
 
       {rows === null && (
         <div aria-hidden>
