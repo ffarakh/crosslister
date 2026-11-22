@@ -12,7 +12,8 @@ export const maxDuration = 120;
 const Body = z.object({
   confirmed: z.literal(true),
   // platform → content hash shown in the review. Guarantees what goes live is what was reviewed.
-  reviewed: z.record(z.enum(PLATFORMS), z.string()),
+  // partialRecord: only the selected platforms need be present (z.record would demand all three in Zod 4).
+  reviewed: z.partialRecord(z.enum(PLATFORMS), z.string()),
 });
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
