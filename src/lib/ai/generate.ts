@@ -196,6 +196,14 @@ export async function callVisionModel(images: ImageInput[], sellerNotes: string,
 const provOf = (b: z.infer<typeof Basis>): Provenance | null =>
   b === "read_from_label" ? "ai_label" : b === "clearly_visible" ? "ai_visible" : null;
 
+/** Strip any tool-call/XML artefacts the model may leak into a field (e.g. <parameter name="value">Ridge). */
+function clean(s: string): string {
+  return s
+    .replace(/<\/?parameter\b[^>]*>/gi, "")
+    .replace(/<\/?(?:antml:)?[a-z_][\w:-]*(?:\s[^>]*)?>/gi, "")
+    .trim();
+}
+
 /** A field the AI may fill: empty, or previously AI-filled (never overwrite the seller's own edits). */
 function aiMayWrite(draft: ListingDraft, key: string, current: unknown) {
   const p = draft.ai.provenance[key];
@@ -208,28 +216,31 @@ export function applyAiResult(draft: ListingDraft, r: AiResult): ListingDraft {
   const prov = next.ai.provenance;
 
   if (aiMayWrite(next, "title", next.shared.title)) {
-    next.shared.title = r.title.slice(0, 80);
+    next.shared.title = clean(r.title).slice(0, 80);
     prov.title = "ai_visible";
   }
   if (aiMayWrite(next, "description", next.shared.description)) {
-    next.shared.description = r.description;
+    next.shared.description = clean(r.description);
     prov.description = "ai_visible";
   }
   const bp = provOf(r.brand.basis);
-  if (bp && r.brand.value.trim() && aiMayWrite(next, "brand", next.shared.brand)) {
-    next.shared.brand = r.brand.value.trim();
+  const brandVal = clean(r.brand.value);
+  if (bp && brandVal && aiMayWrite(next, "brand", next.shared.brand)) {
+    next.shared.brand = brandVal;
     prov.brand = bp;
   }
   const questions = [...r.questions];
   for (const a of r.attributes) {
-    const key = `attr:${a.name}`;
+    const name = clean(a.name);
+    const value = clean(a.value);
+    const key = `attr:${name}`;
     const p = provOf(a.basis);
-    if (!p || !a.value.trim()) {
-      questions.push(`What is the ${a.name.toLowerCase()}?`);
+    if (!name || !p || !value) {
+      if (name) questions.push(`What is the ${name.toLowerCase()}?`);
       continue;
     }
-    if (aiMayWrite(next, key, next.shared.attributes[a.name])) {
-      next.shared.attributes[a.name] = a.value.trim();
+    if (aiMayWrite(next, key, next.shared.attributes[name])) {
+      next.shared.attributes[name] = value;
       prov[key] = p;
     }
   }
