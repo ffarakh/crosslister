@@ -44,14 +44,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       store: new SupabasePublishStore(sb),
       photoUrlsFor: async (p) => {
         const r = resolveListing(draft, p);
-        // eBay downloads the images when the offer is published; 24h is plenty
-        return Promise.all(
-          r.photos.map(async (ph) => {
-            const { data, error } = await sb.storage.from("photos").createSignedUrl(ph.path, 60 * 60 * 24);
-            if (error || !data) throw new Error(`Couldn't prepare photo: ${error?.message}`);
-            return data.signedUrl;
-          }),
-        );
+        // Public URLs are short and stable — eBay caps each image URL at 500 chars
+        // (signed URLs blow past that), so the photos bucket is public-read.
+        return r.photos.map((ph) => sb.storage.from("photos").getPublicUrl(ph.path).data.publicUrl);
       },
     });
     return Response.json({ results });

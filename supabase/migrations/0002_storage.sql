@@ -1,6 +1,6 @@
 -- Private bucket for item photos. Path layout: <user_id>/<listing_id>/<photo_id>.<ext>
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('photos', 'photos', false, 15728640, array['image/jpeg','image/png','image/webp','image/heic'])
+values ('photos', 'photos', true, 15728640, array['image/jpeg','image/png','image/webp','image/heic'])
 on conflict (id) do nothing;
 
 create policy photos_select_own on storage.objects for select to authenticated
