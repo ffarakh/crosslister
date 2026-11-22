@@ -7,19 +7,33 @@ import type { ListingDraft, Provenance } from "@/lib/listing/types";
  * what it can SEE, and what it doesn't know. Anything it doesn't know becomes a question, never a value.
  */
 
-const Basis = z.enum(["read_from_label", "clearly_visible", "unknown"]);
+// Tolerant of model variance: unknown basis values fall back to "unknown".
+const Basis = z.preprocess(
+  (v) => (["read_from_label", "clearly_visible", "unknown"].includes(v as string) ? v : "unknown"),
+  z.enum(["read_from_label", "clearly_visible", "unknown"]),
+);
+// Accept brand as either {value,basis} or a bare string (treated as seen in the photos).
+const Brand = z.preprocess(
+  (v) => (typeof v === "string" ? { value: v, basis: "clearly_visible" } : v),
+  z.object({ value: z.string(), basis: Basis }),
+);
+const Verdict = z.preprocess(
+  (v) => (["good", "ok", "poor"].includes(v as string) ? v : "ok"),
+  z.enum(["good", "ok", "poor"]),
+);
+const strList = z.array(z.string()).optional().default([]);
 
 export const AiResult = z.object({
-  item_type: z.string(),
+  item_type: z.string().optional().default(""),
   title: z.string(),
   description: z.string(),
-  brand: z.object({ value: z.string(), basis: Basis }),
-  attributes: z.array(z.object({ name: z.string(), value: z.string(), basis: Basis })),
-  visible_defects: z.array(z.string()),
-  photo_feedback: z.object({ verdict: z.enum(["good", "ok", "poor"]), notes: z.array(z.string()) }),
-  category_keywords: z.array(z.string()),
-  uncertainties: z.array(z.string()),
-  questions: z.array(z.string()),
+  brand: Brand.optional().default({ value: "", basis: "unknown" }),
+  attributes: z.array(z.object({ name: z.string(), value: z.string(), basis: Basis })).optional().default([]),
+  visible_defects: strList,
+  photo_feedback: z.object({ verdict: Verdict, notes: strList }).optional().default({ verdict: "ok", notes: [] }),
+  category_keywords: strList,
+  uncertainties: strList,
+  questions: strList,
   price_estimate: z
     .object({ low_gbp: z.number(), high_gbp: z.number(), basis: z.string() })
     .nullable()
