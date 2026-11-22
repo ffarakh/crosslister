@@ -47,7 +47,20 @@ export function EbayFieldsPanel({ draft, update, issues }: Props) {
     setCats([]);
     setFields(update, "ebay", { categoryId: c.id, categoryName: c.path, requiredAspects: [] });
     const j = await (await fetch(`/api/ebay/aspects?categoryId=${c.id}`)).json();
-    if (!j.error) setFields(update, "ebay", { requiredAspects: j.required });
+    if (!j.error) {
+      const required: string[] = j.required ?? [];
+      setFields(update, "ebay", { requiredAspects: required });
+      // Pre-add empty rows for required item specifics (except Brand, which has its own field)
+      // so the seller sees exactly what to fill instead of a late "eBay requires X" error.
+      update((d) => {
+        const attrs = { ...d.shared.attributes };
+        for (const a of required) {
+          if (a.toLowerCase() === "brand") continue;
+          if (!(a in attrs)) attrs[a] = "";
+        }
+        return { ...d, shared: { ...d.shared, attributes: attrs } };
+      });
+    }
   }
 
   const policySel = (key: "fulfillmentPolicyId" | "paymentPolicyId" | "returnPolicyId", label: string, opts: Opt[]) => (
