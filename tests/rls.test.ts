@@ -33,7 +33,9 @@ beforeAll(async () => {
     grant usage on schema auth to authenticated;
     insert into auth.users values ('${A}'), ('${B}');
   `);
-  await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations/0001_init.sql"), "utf8"));
+  // Apply every non-storage migration so tests cover the policies as deployed.
+  for (const m of ["0001_init.sql", "0003_rate_limits.sql", "0004_perf.sql"])
+    await db.exec(readFileSync(path.join(__dirname, "../supabase/migrations", m), "utf8"));
   await db.exec(`
     grant usage on schema public to authenticated;
     grant select, insert, update, delete on all tables in schema public to authenticated;
