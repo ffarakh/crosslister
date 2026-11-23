@@ -166,7 +166,18 @@ export class EbayApi {
         categoryTypes: cat,
       })).paymentPolicyId;
 
-    const returnPolicyId =
+    // Create both a no-returns and a 30-day policy so the seller can pick. Default to no returns
+    // (private sellers may use it); if an item is rejected, switch that item to 30-day returns.
+    const noReturnsId =
+      existing.return.find((p) => p.name === "No returns")?.id ??
+      (await this.createPolicy<{ returnPolicyId: string }>("return_policy", {
+        name: "No returns",
+        marketplaceId: EBAY_MARKETPLACE,
+        categoryTypes: cat,
+        returnsAccepted: false,
+      }).then((r) => r, () => null))?.returnPolicyId;
+
+    const thirtyDayId =
       existing.return.find((p) => p.name === "30-day returns")?.id ??
       (await this.createPolicy<{ returnPolicyId: string }>("return_policy", {
         name: "30-day returns",
@@ -178,7 +189,7 @@ export class EbayApi {
         refundMethod: "MONEY_BACK",
       })).returnPolicyId;
 
-    return { fulfillmentPolicyId, paymentPolicyId, returnPolicyId };
+    return { fulfillmentPolicyId, paymentPolicyId, returnPolicyId: noReturnsId || thirtyDayId };
   }
 
   private async createPolicy<T>(kind: "fulfillment_policy" | "payment_policy" | "return_policy", body: unknown): Promise<T> {
