@@ -1,3 +1,4 @@
+import { rateLimit } from "@/lib/ratelimit";
 import { z } from "zod";
 import { loadListing } from "@/lib/listing/load";
 import { contentHash, resolveListing } from "@/lib/listing/resolve";
@@ -21,6 +22,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { id } = await params;
     const sb = await supabaseServer();
     const user = await requireUser(sb);
+    await rateLimit(sb, "publish", 30, 60);
     const parsed = Body.safeParse(await req.json());
     if (!parsed.success) throw new HttpError(400, "Publishing needs an explicit confirmation from the review screen");
     const { reviewed } = parsed.data;

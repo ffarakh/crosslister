@@ -1,3 +1,4 @@
+import { rateLimit } from "@/lib/ratelimit";
 import { applyAiResult, callVisionModel, type ImageInput } from "@/lib/ai/generate";
 import { loadListing } from "@/lib/listing/load";
 import { errorResponse, HttpError, requireUser, supabaseServer } from "@/lib/supabase/server";
@@ -10,6 +11,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { id } = await params;
     const sb = await supabaseServer();
     await requireUser(sb);
+    // Protects your AI spend: cap AI drafts per user (burst 10/min, 60/hour).
+    await rateLimit(sb, "ai_min", 10, 60);
+    await rateLimit(sb, "ai_hour", 60, 3600);
     const { draft } = await loadListing(sb, id);
     if (!draft.photos.length) throw new HttpError(400, "Upload photos first");
     const { notes } = ((await req.json().catch(() => ({}))) ?? {}) as { notes?: string };
