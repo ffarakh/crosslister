@@ -13,9 +13,9 @@ import { createHash } from "node:crypto";
  * the eBay developer portal. Set EBAY_VERIFICATION_TOKEN (32–80 chars) in the env.
  */
 
+// Must match EXACTLY the endpoint URL registered in the eBay developer portal.
 function endpointUrl() {
-  const base = process.env.APP_URL || "https://crosslister-psi.vercel.app";
-  return `${base.replace(/\/$/, "")}/api/ebay/deletion`;
+  return process.env.EBAY_DELETION_ENDPOINT || "https://crosslister-psi.vercel.app/api/ebay/deletion";
 }
 
 export async function GET(req: Request) {
