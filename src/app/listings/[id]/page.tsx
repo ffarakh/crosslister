@@ -5,6 +5,7 @@ import { ConditionIn, FieldShell, InheritTag, PriceIn, ProvBadge, QtyIn, TextIn 
 import { PhotoStrip } from "@/components/PhotoStrip";
 import { ReviewModal, type PlatformRow } from "@/components/ReviewModal";
 import { EbayFieldsPanel, FacebookFieldsPanel, VintedFieldsPanel } from "@/components/PlatformPanels";
+import { ManualListingHelper } from "@/components/ManualListingHelper";
 import {
   formatPence,
   isOverridden,
@@ -239,6 +240,7 @@ export default function EditorPage({ params }: { params: Promise<{ id: string }>
             {tab === "vinted" && <VintedFieldsPanel draft={draft} update={update} issues={issues.vinted} />}
             <h3>Listing content on {PLATFORM_LABEL[tab]}</h3>
             {inheritedFields(tab)}
+            {(tab === "facebook" || tab === "vinted") && <ManualListingHelper draft={draft} platform={tab} />}
           </>
         ) : (
           <p className="muted">Select {PLATFORM_LABEL[tab]} above to edit it.</p>

@@ -259,3 +259,9 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .pc-good { background: color-mix(in srgb, var(--ok) 12%, transparent); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
 .pc-ok { background: var(--warnbg); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
 .pc-poor { background: var(--errbg); border-color: color-mix(in srgb, var(--err) 45%, transparent); }
+
+/* Manual listing helper (Facebook / Vinted) */
+.manual-helper { margin-top: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.manual-text { width: 100%; font: inherit; font-size: 0.9rem; margin: 0.5rem 0; resize: vertical; }
+.manual-thumbs { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.6rem; }
+.manual-thumbs img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }

@@ -163,7 +163,7 @@ export function emptyDraft(): ListingDraft {
           merchantLocationKey: "",
         },
       },
-      facebook: { enabled: false, overrides: {}, fields: { category: "", delivery: "collection", collectionLocation: "" } },
+      facebook: { enabled: false, overrides: {}, fields: { category: "", delivery: "collection", collectionLocation: "Stourbridge (DY8)" } },
       vinted: { enabled: false, overrides: {}, fields: { category: "", size: "", parcelSize: "" } },
     },
     ai: { provenance: {}, questions: [], uncertainties: [], visibleDefects: [] },
