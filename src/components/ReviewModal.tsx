@@ -4,6 +4,7 @@ import { formatPence } from "@/lib/listing/resolve";
 import { CONDITION_LABEL, PLATFORM_LABEL, type Platform, type ResolvedListing } from "@/lib/listing/types";
 import type { Issue } from "@/lib/listing/validate";
 import type { PlatformResult } from "@/lib/publish/orchestrator";
+import { ebayBuyerTotal } from "@/lib/fees";
 
 export type PlatformRow = {
   platform: Platform;
@@ -40,11 +41,20 @@ export function ReviewModal({ listingId, onClose, onPublished }: { listingId: st
   const [err, setErr] = useState("");
   const [publishing, setPublishing] = useState(false);
   const [results, setResults] = useState<PlatformResult[] | null>(null);
+  const [postageByPolicy, setPostageByPolicy] = useState<Record<string, number | null>>({});
 
   useEffect(() => {
     fetch(`/api/listings/${listingId}/review`)
       .then((r) => r.json())
       .then((j) => (j.error ? setErr(j.error) : setItems(j.platforms)));
+    fetch("/api/ebay/status")
+      .then((r) => r.json())
+      .then((st) => {
+        const m: Record<string, number | null> = {};
+        for (const p of st?.policies?.fulfillment ?? []) m[p.id] = p.postagePence ?? null;
+        setPostageByPolicy(m);
+      })
+      .catch(() => {});
   }, [listingId]);
 
   const ready = items?.filter((i) => !i.issues.some((x) => x.severity === "error")) ?? [];
@@ -99,6 +109,17 @@ export function ReviewModal({ listingId, onClose, onPublished }: { listingId: st
                       {formatPence(i.resolved.pricePence)} · qty {i.resolved.quantity} · {i.resolved.condition ? CONDITION_LABEL[i.resolved.condition] : "no condition"}
                       {i.resolved.overridden.includes("pricePence") && <span className="chip small">platform price</span>}
                     </p>
+                    {i.platform === "ebay" && i.resolved.pricePence ? (() => {
+                      const pid = (i.resolved.fields as { fulfillmentPolicyId?: string }).fulfillmentPolicyId ?? "";
+                      const post = postageByPolicy[pid];
+                      const t = ebayBuyerTotal(i.resolved.pricePence, post ?? 0);
+                      return (
+                        <p className="small" style={{ margin: "0.1rem 0 0.3rem" }}>
+                          <strong>Buyer pays {formatPence(t.totalPence)} all-in</strong>
+                          <span className="muted"> (+{formatPence(t.protectionPence)} buyer protection{post != null ? ` + ${formatPence(t.postagePence)} postage` : " + postage"})</span>
+                        </p>
+                      );
+                    })() : null}
                     <p className="small"><strong>Delivery:</strong> {deliverySummary(i.resolved)}</p>
                     {i.resolved.brand && <p className="small"><strong>Brand:</strong> {i.resolved.brand}</p>}
                     {Object.keys(i.resolved.attributes).length > 0 && (

@@ -8,6 +8,7 @@ import { EbayFieldsPanel, FacebookFieldsPanel, VintedFieldsPanel } from "@/compo
 import { ManualListingHelper } from "@/components/ManualListingHelper";
 import {
   formatPence,
+  parsePounds,
   isOverridden,
   resetAttributeOverride,
   resetOverride,
@@ -17,6 +18,7 @@ import {
 } from "@/lib/listing/resolve";
 import { PLATFORMS, PLATFORM_LABEL, type InheritableFields, type ListingDraft, type Platform } from "@/lib/listing/types";
 import { blockingCount, validatePlatform, type Issue } from "@/lib/listing/validate";
+import { ebayBuyerTotal, itemPriceForBuyerTotal } from "@/lib/fees";
 
 type Tab = "shared" | Platform;
 
@@ -31,6 +33,7 @@ export default function EditorPage({ params }: { params: Promise<{ id: string }>
   const [aiErr, setAiErr] = useState("");
   const [notes, setNotes] = useState("");
   const [aiOn, setAiOn] = useState(false);
+  const [postageByPolicy, setPostageByPolicy] = useState<Record<string, number | null>>({});
   const [reviewing, setReviewing] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef<ListingDraft | null>(null);
@@ -45,6 +48,14 @@ export default function EditorPage({ params }: { params: Promise<{ id: string }>
   useEffect(() => {
     load();
     fetch("/api/features").then((r) => r.json()).then((f) => setAiOn(Boolean(f.ai))).catch(() => {});
+    fetch("/api/ebay/status")
+      .then((r) => r.json())
+      .then((st) => {
+        const m: Record<string, number | null> = {};
+        for (const p of st?.policies?.fulfillment ?? []) m[p.id] = p.postagePence ?? null;
+        setPostageByPolicy(m);
+      })
+      .catch(() => {});
   }, [load]);
 
   const flush = useCallback(async () => {
@@ -83,6 +94,10 @@ export default function EditorPage({ params }: { params: Promise<{ id: string }>
   const allIssues = enabled.flatMap((p) => issues[p]);
   const blocking = blockingCount(allIssues);
   const prov = draft.ai.provenance;
+  // What an eBay buyer actually pays (private seller: item + buyer protection + postage).
+  const ebayPostage = postageByPolicy[draft.platforms.ebay.fields.fulfillmentPolicyId] ?? null;
+  const ebayPrice = draft.platforms.ebay.enabled ? resolveListing(draft, "ebay").pricePence : null;
+  const ebayAllIn = ebayPrice ? ebayBuyerTotal(ebayPrice, ebayPostage ?? 0) : null;
 
   const setSharedField = <K extends keyof InheritableFields>(key: K, value: InheritableFields[K], provKey: string = key) =>
     update((d) => ({ ...d, shared: { ...d.shared, [key]: value }, ai: { ...d.ai, provenance: { ...d.ai.provenance, [provKey]: "user" } } }));
@@ -134,7 +149,12 @@ export default function EditorPage({ params }: { params: Promise<{ id: string }>
           <TextIn multiline value={val("description")} onChange={(v) => set("description", v)} />
         </FieldShell>
         <div className="grid3">
-          <FieldShell label="Price" error={errFor(t, "pricePence")} extra={tag("pricePence")}>
+          <FieldShell
+            label="Price"
+            error={errFor(t, "pricePence")}
+            extra={tag("pricePence")}
+            hint={(t === "shared" || t === "ebay") && ebayAllIn ? `eBay buyer pays ${formatPence(ebayAllIn.totalPence)} all-in (+${formatPence(ebayAllIn.protectionPence)} buyer protection${ebayPostage != null ? ` + ${formatPence(ebayAllIn.postagePence)} postage` : ", + postage"})` : undefined}
+          >
             <PriceIn value={val("pricePence")} onChange={(v) => set("pricePence", v)} />
           </FieldShell>
           <FieldShell label="Quantity" hint="How many you have to sell" error={errFor(t, "quantity")} extra={tag("quantity")}>
@@ -207,7 +227,7 @@ export default function EditorPage({ params }: { params: Promise<{ id: string }>
         </div>}
         {aiErr && <p className="err">{aiErr}</p>}
         {draft.ai.generatedAt && <AiPanel draft={draft} onUsePrice={(p) => setSharedField("pricePence", p)} />}
-        {draft.ai.generatedAt && <PricingSection draft={draft} onUsePrice={(p) => setSharedField("pricePence", p)} />}
+        {draft.ai.generatedAt && <PricingSection draft={draft} postagePence={ebayPostage} currentPricePence={ebayPrice} onUsePrice={(p) => setSharedField("pricePence", p)} />}
       </section>
 
       <section className="card">
@@ -341,7 +361,7 @@ function AiPanel({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice: (p: n
 }
 
 type Comps = {
-  comps: { title: string; pricePence: number; url: string; condition: string }[];
+  comps: { title: string; pricePence: number; url: string; condition: string; postagePence: number | null; totalPence: number }[];
   min: number | null;
   median: number | null;
   count: number;
@@ -387,8 +407,23 @@ function barcodeOf(d: ListingDraft): string {
   return "";
 }
 
-function PricingSection({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice: (p: number) => void }) {
+function PricingSection({
+  draft,
+  postagePence,
+  currentPricePence,
+  onUsePrice,
+}: {
+  draft: ListingDraft;
+  postagePence: number | null;
+  currentPricePence: number | null;
+  onUsePrice: (p: number) => void;
+}) {
   const ai = draft.ai;
+  const post = postagePence ?? 0;
+  // Every "match" sets YOUR item price so the buyer's all-in eBay total equals the chosen price.
+  const match = (allInPence: number) => onUsePrice(itemPriceForBuyerTotal(allInPence, post));
+  const [target, setTarget] = useState("");
+  const now = currentPricePence ? ebayBuyerTotal(currentPricePence, post) : null;
   const [comps, setComps] = useState<Comps | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
@@ -419,6 +454,37 @@ function PricingSection({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice
     <div className="pricing card-inset">
       <h3 style={{ marginTop: 0 }}>💷 Pricing</h3>
 
+      <div className="allin">
+        {now ? (
+          <p className="small" style={{ margin: 0 }}>
+            <strong>Your eBay buyer pays {formatPence(now.totalPence)}</strong>
+            <span className="muted">
+              {" "}= {formatPence(now.itemPence)} item + {formatPence(now.protectionPence)} buyer protection
+              {postagePence != null ? ` + ${formatPence(now.postagePence)} postage` : " + postage (pick a postage policy)"}
+            </span>
+          </p>
+        ) : (
+          <p className="small muted" style={{ margin: 0 }}>Set a price to see what the eBay buyer pays all-in.</p>
+        )}
+        <div className="row" style={{ marginTop: "0.5rem" }}>
+          <span className="small">I want the buyer to pay £</span>
+          <input style={{ maxWidth: "7rem" }} inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} placeholder="79.99" />
+          <span className="small">all-in</span>
+          <button
+            disabled={!parsePounds(target)}
+            onClick={() => {
+              const t = parsePounds(target);
+              if (t) match(t);
+            }}
+          >
+            Set my price
+          </button>
+        </div>
+        <p className="muted small" style={{ margin: "0.3rem 0 0" }}>
+          Private sellers: eBay adds a buyer protection fee on top of your price (business sellers include it). &quot;Match&quot; buttons below set your price so the buyer&apos;s total equals that price.
+        </p>
+      </div>
+
       {ai.priceEstimate && (
         <div className="price-head">
           <div>
@@ -426,7 +492,7 @@ function PricingSection({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice
             <div className="price-big">{formatPence(ai.priceEstimate.lowPence)}–{formatPence(ai.priceEstimate.highPence)}</div>
             <span className="muted small">{ai.priceEstimate.basis}</span>
           </div>
-          <button className="primary" onClick={() => onUsePrice(Math.round((ai.priceEstimate!.lowPence + ai.priceEstimate!.highPence) / 2))}>Use midpoint</button>
+          <button className="primary" onClick={() => match(Math.round((ai.priceEstimate!.lowPence + ai.priceEstimate!.highPence) / 2))}>Match midpoint</button>
         </div>
       )}
 
@@ -434,7 +500,7 @@ function PricingSection({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice
         <div className="price-col">
           <h4>RRP</h4>
           {ai.rrp ? (
-            <p><strong>{formatPence(ai.rrp.pricePence)}</strong><br /><a href={ai.rrp.url} target="_blank" rel="noreferrer" className="small">{ai.rrp.source}</a></p>
+            <p><strong>{formatPence(ai.rrp.pricePence)}</strong> <button className="link" onClick={() => match(ai.rrp!.pricePence)}>match</button><br /><a href={ai.rrp.url} target="_blank" rel="noreferrer" className="small">{ai.rrp.source}</a></p>
           ) : <p className="muted small">Not found</p>}
         </div>
 
@@ -446,7 +512,7 @@ function PricingSection({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice
                 <li key={i}>
                   <a href={o.url} target="_blank" rel="noreferrer">{o.retailer}</a>
                   <span>{formatPence(o.pricePence)}</span>
-                  <button className="link" onClick={() => onUsePrice(o.pricePence)}>use</button>
+                  <button className="link" onClick={() => match(o.pricePence)}>match</button>
                 </li>
               ))}
             </ul>
@@ -471,8 +537,8 @@ function PricingSection({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice
                 <p className="small">
                   {comps.count} listing{comps.count === 1 ? "" : "s"}
                   {comps.matchedBy === "barcode" ? " (exact barcode match)" : comps.matchedBy === "search (any condition)" ? " (incl. used — no new ones found)" : ""}
-                  {" · "}cheapest <strong>{formatPence(comps.min!)}</strong> · typical <strong>{formatPence(comps.median!)}</strong>
-                  {comps.median != null && <button className="link" onClick={() => onUsePrice(comps.median!)}>use typical</button>}
+                  {" · "}cheapest <strong>{formatPence(comps.min!)}</strong> · typical <strong>{formatPence(comps.median!)}</strong> (incl. postage)
+                  {comps.median != null && <button className="link" onClick={() => match(comps.median!)}>match typical</button>}
                 </p>
                 <ul className="offers">
                   {comps.comps.slice(0, 6).map((c, i) => (
@@ -481,8 +547,11 @@ function PricingSection({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice
                       <span className={`cond ${/^new/i.test(c.condition) ? "cond-new" : "cond-used"}`} title={c.condition || "Condition not stated"}>
                         {shortCondition(c.condition)}
                       </span>
-                      <span>{formatPence(c.pricePence)}</span>
-                      <button className="link" onClick={() => onUsePrice(c.pricePence)}>use</button>
+                      <span title={c.postagePence != null ? `${formatPence(c.pricePence)} + ${formatPence(c.postagePence)} postage` : "Postage not stated"}>
+                        {formatPence(c.totalPence)}
+                        <span className="muted small"> {c.postagePence ? `(${formatPence(c.pricePence)}+${formatPence(c.postagePence)} p&p)` : c.postagePence === 0 ? "(free p&p)" : ""}</span>
+                      </span>
+                      <button className="link" onClick={() => match(c.totalPence)}>match</button>
                     </li>
                   ))}
                 </ul>

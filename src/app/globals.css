@@ -271,3 +271,6 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .cond { font-size: 0.72rem; font-weight: 600; padding: 0.05rem 0.45rem; border-radius: 999px; white-space: nowrap; border: 1px solid; }
 .cond-new { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: color-mix(in srgb, var(--ok) 10%, transparent); }
 .cond-used { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); background: var(--warnbg); }
+
+/* All-in eBay buyer price box */
+.allin { background: var(--accent-soft); border-radius: 10px; padding: 0.7rem 0.9rem; margin-bottom: 0.9rem; }

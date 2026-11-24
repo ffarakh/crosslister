@@ -144,12 +144,23 @@ export class EbayApi {
   async listPolicies() {
     const q = `?marketplace_id=${EBAY_MARKETPLACE}`;
     const [f, p, r] = await Promise.all([
-      this.call<{ fulfillmentPolicies?: { fulfillmentPolicyId: string; name: string }[] }>("GET", `/sell/account/v1/fulfillment_policy${q}`),
+      this.call<{
+        fulfillmentPolicies?: {
+          fulfillmentPolicyId: string;
+          name: string;
+          shippingOptions?: { optionType?: string; shippingServices?: { freeShipping?: boolean; shippingCost?: { value?: string } }[] }[];
+        }[];
+      }>("GET", `/sell/account/v1/fulfillment_policy${q}`),
       this.call<{ paymentPolicies?: { paymentPolicyId: string; name: string }[] }>("GET", `/sell/account/v1/payment_policy${q}`),
       this.call<{ returnPolicies?: { returnPolicyId: string; name: string }[] }>("GET", `/sell/account/v1/return_policy${q}`),
     ]);
     return {
-      fulfillment: (f.data?.fulfillmentPolicies ?? []).map((x) => ({ id: x.fulfillmentPolicyId, name: x.name })),
+      fulfillment: (f.data?.fulfillmentPolicies ?? []).map((x) => {
+        // Cheapest domestic service = what a UK buyer is charged for postage.
+        const svcs = (x.shippingOptions ?? []).filter((o) => (o.optionType ?? "DOMESTIC") === "DOMESTIC").flatMap((o) => o.shippingServices ?? []);
+        const costs = svcs.map((v) => (v.freeShipping ? 0 : Math.round(Number(v.shippingCost?.value ?? 0) * 100)));
+        return { id: x.fulfillmentPolicyId, name: x.name, postagePence: costs.length ? Math.min(...costs) : null };
+      }),
       payment: (p.data?.paymentPolicies ?? []).map((x) => ({ id: x.paymentPolicyId, name: x.name })),
       return: (r.data?.returnPolicies ?? []).map((x) => ({ id: x.returnPolicyId, name: x.name })),
     };
@@ -230,9 +241,15 @@ export class EbayApi {
   /** Current live GB listings for a search term (free Browse API, application token). */
   async browseSearch(
     opts: { q?: string; gtin?: string; newOnly?: boolean },
-  ): Promise<{ title: string; pricePence: number; url: string; condition: string }[]> {
+  ): Promise<{ title: string; pricePence: number; url: string; condition: string; postagePence: number | null }[]> {
     type B = {
-      itemSummaries?: { title?: string; price?: { value?: string; currency?: string }; itemWebUrl?: string; condition?: string }[];
+      itemSummaries?: {
+        title?: string;
+        price?: { value?: string; currency?: string };
+        itemWebUrl?: string;
+        condition?: string;
+        shippingOptions?: { shippingCost?: { value?: string } }[];
+      }[];
     };
     const params = new URLSearchParams({ limit: "30" }); // default = eBay "best match" relevance, not cheapest-first
     if (opts.gtin) params.set("gtin", opts.gtin);
@@ -248,6 +265,7 @@ export class EbayApi {
         pricePence: Math.round(Number(s.price!.value) * 100),
         url: s.itemWebUrl ?? "",
         condition: s.condition ?? "",
+        postagePence: s.shippingOptions?.[0]?.shippingCost?.value != null ? Math.round(Number(s.shippingOptions[0].shippingCost.value) * 100) : null,
       }))
       .filter((s) => s.pricePence > 0);
   }
