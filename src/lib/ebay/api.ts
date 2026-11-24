@@ -204,14 +204,19 @@ export class EbayApi {
   }
 
   /** Current live GB listings for a search term (free Browse API, application token). */
-  async browseSearch(q: string, newOnly = true): Promise<{ title: string; pricePence: number; url: string; condition: string }[]> {
+  async browseSearch(
+    opts: { q?: string; gtin?: string; newOnly?: boolean },
+  ): Promise<{ title: string; pricePence: number; url: string; condition: string }[]> {
     type B = {
       itemSummaries?: { title?: string; price?: { value?: string; currency?: string }; itemWebUrl?: string; condition?: string }[];
     };
-    const filter = newOnly ? "&filter=" + encodeURIComponent("conditions:{NEW},buyingOptions:{FIXED_PRICE}") : "";
-    const d = await this.appCall<B>(
-      `/buy/browse/v1/item_summary/search?q=${encodeURIComponent(q)}&limit=12&sort=price${filter}`,
-    );
+    const params = new URLSearchParams({ limit: "30" }); // default = eBay "best match" relevance, not cheapest-first
+    if (opts.gtin) params.set("gtin", opts.gtin);
+    if (opts.q) params.set("q", opts.q);
+    const filters = ["buyingOptions:{FIXED_PRICE}", "itemLocationCountry:GB"];
+    if (opts.newOnly !== false) filters.push("conditions:{NEW}");
+    params.set("filter", filters.join(","));
+    const d = await this.appCall<B>(`/buy/browse/v1/item_summary/search?${params.toString()}`);
     return (d.itemSummaries ?? [])
       .filter((s) => s.price?.value && (s.price.currency ?? "GBP") === "GBP")
       .map((s) => ({

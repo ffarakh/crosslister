@@ -332,20 +332,54 @@ function AiPanel({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice: (p: n
   );
 }
 
-type Comps = { comps: { title: string; pricePence: number; url: string; condition: string }[]; min: number | null; median: number | null; count: number };
+type Comps = {
+  comps: { title: string; pricePence: number; url: string; condition: string }[];
+  min: number | null;
+  median: number | null;
+  count: number;
+  matchedBy?: string;
+};
+
+const STOP = new Set(["new", "sealed", "brand", "bnib", "bnwt", "with", "tags", "and", "the", "in", "box", "-", "–", "unused", "genuine", "authentic"]);
+
+/** Best search phrase for this exact product: brand + model if known, else a cleaned-up title. */
+function smartQuery(d: ListingDraft): string {
+  const attrs = d.shared.attributes;
+  const find = (...keys: string[]) =>
+    Object.entries(attrs).find(([k, v]) => keys.includes(k.toLowerCase().replace(/[^a-z]/g, "")) && v.trim())?.[1].trim() ?? "";
+  const model = find("model", "mpn");
+  const brand = d.shared.brand.trim();
+  if (brand && model) return model.toLowerCase().includes(brand.toLowerCase()) ? model : `${brand} ${model}`;
+  const words = d.shared.title.split(/\s+/).filter((w) => w && !STOP.has(w.toLowerCase()));
+  return words.slice(0, 7).join(" ") || d.ai.itemType || "";
+}
+
+function barcodeOf(d: ListingDraft): string {
+  for (const [k, v] of Object.entries(d.shared.attributes)) {
+    if (/ean|upc|gtin|barcode/i.test(k)) {
+      const digits = v.replace(/\D/g, "");
+      if (digits.length >= 8) return digits;
+    }
+  }
+  return "";
+}
 
 function PricingSection({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice: (p: number) => void }) {
   const ai = draft.ai;
   const [comps, setComps] = useState<Comps | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
-  const query = (draft.shared.brand ? draft.shared.brand + " " : "") + (ai.itemType || draft.shared.title || "");
+  const [query, setQuery] = useState(() => smartQuery(draft));
+  const gtin = barcodeOf(draft);
 
   async function loadComps() {
     setLoading(true);
     setErr("");
     try {
-      const r = await fetch(`/api/ebay/comps?q=${encodeURIComponent(query.trim())}`);
+      const params = new URLSearchParams({ q: query.trim() });
+      if (gtin) params.set("gtin", gtin);
+      if (draft.shared.brand.trim()) params.set("brand", draft.shared.brand.trim());
+      const r = await fetch(`/api/ebay/comps?${params.toString()}`);
       const j = await r.json();
       if (!r.ok) setErr(j.error || "Couldn't load eBay prices");
       else setComps(j);
@@ -398,19 +432,23 @@ function PricingSection({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice
       </div>
 
       <div className="price-col">
-        <div className="row between">
-          <h4>Current eBay listings</h4>
-          <button onClick={loadComps} disabled={loading || !query.trim()}>{loading ? "Searching…" : comps ? "Refresh" : "Find eBay prices"}</button>
+        <h4>Current eBay listings (new, UK)</h4>
+        <div className="row">
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Brand + model" onKeyDown={(e) => e.key === "Enter" && loadComps()} />
+          <button onClick={loadComps} disabled={loading || (!query.trim() && !gtin)}>{loading ? "Searching…" : comps ? "Search again" : "Find eBay prices"}</button>
         </div>
+        {gtin && <p className="muted small">Barcode {gtin} is tried first for an exact match.</p>}
         {err && <p className="err small">{err}</p>}
         {comps && (
           <>
             {comps.count === 0 ? (
-              <p className="muted small">No current eBay listings found{draft.platforms.ebay.fields ? "" : ""} (sandbox has little data — this fills out on real eBay).</p>
+              <p className="muted small">No matching new listings on eBay UK right now. Try a shorter search, e.g. just the brand and model.</p>
             ) : (
               <>
                 <p className="small">
-                  {comps.count} listings · cheapest <strong>{formatPence(comps.min!)}</strong> · typical <strong>{formatPence(comps.median!)}</strong>
+                  {comps.count} listing{comps.count === 1 ? "" : "s"}
+                  {comps.matchedBy === "barcode" ? " (exact barcode match)" : comps.matchedBy === "search (any condition)" ? " (incl. used — no new ones found)" : ""}
+                  {" · "}cheapest <strong>{formatPence(comps.min!)}</strong> · typical <strong>{formatPence(comps.median!)}</strong>
                   {comps.median != null && <button className="link" onClick={() => onUsePrice(comps.median!)}>use typical</button>}
                 </p>
                 <ul className="offers">
