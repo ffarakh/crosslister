@@ -24,6 +24,8 @@ export async function POST() {
     const draft = emptyDraft();
     const { data: conn } = await sb.from("ebay_connections").select("defaults").eq("user_id", user.id).maybeSingle();
     Object.assign(draft.platforms.ebay.fields, pickDefaults(conn?.defaults));
+    const area = (user.user_metadata as { fbCollectionArea?: string } | undefined)?.fbCollectionArea;
+    if (area) draft.platforms.facebook.fields.collectionLocation = area;
     const { data, error } = await sb.from("listings").insert({ data: draft }).select("id").single();
     if (error) throw new Error(error.message);
     return Response.json({ id: data.id });

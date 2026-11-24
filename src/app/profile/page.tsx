@@ -14,15 +14,23 @@ export default function Profile() {
   const [user, setUser] = useState<User | null>(null);
   const [itemCount, setItemCount] = useState<number | null>(null);
   const [ebay, setEbay] = useState<EbayStatus | null>(null);
+  const [area, setArea] = useState("");
+  const [areaMsg, setAreaMsg] = useState("");
 
   useEffect(() => {
     sb.auth.getUser().then(({ data }) => {
       if (!data.user) return router.replace("/login");
       setUser(data.user);
+      setArea((data.user.user_metadata as { fbCollectionArea?: string })?.fbCollectionArea ?? "");
     });
     sb.from("listings").select("id", { count: "exact", head: true }).then(({ count }) => setItemCount(count ?? 0));
     fetch("/api/ebay/status").then((r) => r.json()).then(setEbay).catch(() => {});
   }, [sb, router]);
+
+  async function saveArea() {
+    const { error } = await sb.auth.updateUser({ data: { fbCollectionArea: area.trim() } });
+    setAreaMsg(error ? error.message : "Saved — new items will use this.");
+  }
 
   async function signOut() {
     await sb.auth.signOut();
@@ -60,9 +68,22 @@ export default function Profile() {
             {!ebay ? "…" : ebay.connected ? `connected · ${ebay.env}` : "not connected"}
           </span>
         </div>
-        <div className="mkt-row"><span>Facebook Marketplace</span><span className="chip s-blocked">awaiting approval</span></div>
-        <div className="mkt-row"><span>Vinted UK</span><span className="chip s-blocked">awaiting approval</span></div>
+        <div className="mkt-row"><span>Facebook Marketplace</span><span className="chip s-blocked">manual posting helper</span></div>
+        <div className="mkt-row"><span>Vinted UK</span><span className="chip s-blocked">manual posting helper</span></div>
         <Link href="/connections" className="button" style={{ marginTop: "0.8rem" }}>Manage connections</Link>
+      </section>
+
+      <section className="card">
+        <h3>Selling preferences</h3>
+        <label className="fieldlabel">
+          Facebook collection area
+          <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Town or area only, e.g. Stourbridge (DY8)" maxLength={60} />
+        </label>
+        <p className="muted small">Shown to buyers on Facebook Marketplace listings. Use a town or area, never your full address.</p>
+        <div className="row">
+          <button className="primary" onClick={saveArea}>Save</button>
+          {areaMsg && <span className="small muted">{areaMsg}</span>}
+        </div>
       </section>
 
       <section className="card">
