@@ -1,3 +1,4 @@
+import { findGtin, isGtinKey, isValidGtin } from "@/lib/listing/gtin";
 import { EbayApi, EbayApiError, EbayTransportError, type EbayOffer } from "@/lib/ebay/api";
 import { EBAY_CURRENCY, EBAY_LOCALE, EBAY_MARKETPLACE, ebayItemUrl, type EbayEnv } from "@/lib/ebay/config";
 import type { Condition, ResolvedListing } from "@/lib/listing/types";
@@ -25,14 +26,31 @@ export const toEbayDescription = (text: string) =>
     .map((para) => `<p>${escapeHtml(para).replace(/\n/g, "<br>")}</p>`)
     .join("");
 
-export function buildInventoryItem(r: ResolvedListing, photoUrls: string[]) {
+// Item specifics eBay handles through dedicated fields — never send these as aspects.
+const RESERVED_ASPECT = /^(condition|condition description|brand|price|quantity|sku|title|description)$/i;
+const ASPECT_NAME_MAX = 40; // eBay limits
+const ASPECT_VALUE_MAX = 65;
+const ASPECTS_MAX = 45;
+
+export function buildAspects(r: ResolvedListing): Record<string, string[]> {
   const aspects: Record<string, string[]> = {};
-  for (const [k, v] of Object.entries(r.attributes)) if (v.trim()) aspects[k] = [v.trim()];
-  if (r.brand.trim()) aspects["Brand"] = [r.brand.trim()];
+  for (const [k0, v0] of Object.entries(r.attributes)) {
+    const k = k0.trim();
+    const v = v0.trim();
+    if (!k || !v || RESERVED_ASPECT.test(k) || isGtinKey(k) || /condition/i.test(k)) continue;
+    if (Object.keys(aspects).length >= ASPECTS_MAX) break;
+    aspects[k.slice(0, ASPECT_NAME_MAX)] = [v.slice(0, ASPECT_VALUE_MAX)];
+  }
+  if (r.brand.trim()) aspects["Brand"] = [r.brand.trim().slice(0, ASPECT_VALUE_MAX)];
+  return aspects;
+}
+
+export function buildInventoryItem(r: ResolvedListing, photoUrls: string[]) {
+  const aspects = buildAspects(r);
 
   // eBay requires a product identifier: Brand + MPN, or a GTIN (EAN/UPC).
   // Supply the brand (fallback "Unbranded"), an MPN (from attributes or "Does Not Apply"),
-  // and any EAN/UPC the seller has, so eBay's BrandMPN/identifier check passes.
+  // and the barcode only if its check digit is valid (a misread barcode makes eBay error out).
   const findAttr = (...names: string[]) => {
     for (const [k, v] of Object.entries(r.attributes)) {
       if (names.some((n) => k.toLowerCase().replace(/[^a-z]/g, "") === n) && v.trim()) return v.trim();
@@ -40,19 +58,21 @@ export function buildInventoryItem(r: ResolvedListing, photoUrls: string[]) {
     return "";
   };
   const brand = r.brand.trim() || "Unbranded";
-  const mpn = findAttr("mpn", "manufacturerpartnumber") || findAttr("model") || "Does Not Apply";
-  const gtinRaw = findAttr("ean", "upc", "gtin", "eanupc", "barcode").replace(/\D/g, "");
+  const mpn = (findAttr("mpn", "manufacturerpartnumber") || findAttr("model", "modelnumber", "skumodelnumber") || "Does Not Apply").slice(0, 65);
+  const gtin = findGtin(r.attributes);
 
   const product: Record<string, unknown> = {
-    title: r.title.trim(),
-    description: r.description.trim(),
+    title: r.title.trim().slice(0, 80),
+    description: r.description.trim().slice(0, 4000),
     aspects,
     imageUrls: photoUrls,
     brand,
     mpn,
   };
-  if (gtinRaw.length === 13) product.ean = [gtinRaw];
-  else if (gtinRaw.length === 12) product.upc = [gtinRaw];
+  if (gtin && isValidGtin(gtin)) {
+    if (gtin.length === 12) product.upc = [gtin];
+    else product.ean = [gtin.length === 14 ? gtin.slice(1) : gtin];
+  }
 
   return {
     availability: { shipToLocationAvailability: { quantity: r.quantity } },

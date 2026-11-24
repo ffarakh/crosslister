@@ -1,3 +1,4 @@
+import { findGtin, isValidGtin } from "./gtin";
 import { resolveListing } from "./resolve";
 import { PLATFORM_LABEL, type ListingDraft, type Platform, type ResolvedListing } from "./types";
 
@@ -55,6 +56,9 @@ export function validatePlatform(draft: ListingDraft, platform: Platform): Issue
     if (r.brand) have.add("brand");
     for (const a of f.requiredAspects)
       if (!have.has(a.toLowerCase())) push(`attr:${a}`, `eBay requires "${a}" for this category`);
+    const gtin = findGtin(r.attributes);
+    if (gtin && !isValidGtin(gtin))
+      push("attr:barcode", `Barcode ${gtin} doesn't pass the check-digit test — it may be misread. It won't be sent to eBay until it's fixed.`, "warning");
   }
 
   if (platform === "facebook") {

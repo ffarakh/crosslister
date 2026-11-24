@@ -56,7 +56,15 @@ export class EbayApi {
     } catch {
       data = text;
     }
-    if (res.status >= 500) throw new EbayTransportError(`eBay server error ${res.status}`, path);
+    if (res.status >= 500) {
+      // eBay usually explains a 5xx in the body (e.g. errorId 25001 + details) — keep it so the seller sees why.
+      const errs = ((data as { errors?: EbayErrorItem[] })?.errors ?? []) as EbayErrorItem[];
+      const detail = errs
+        .map((e) => [e.longMessage || e.message, ...(e.parameters ?? []).map((p) => `${p.name}: ${p.value}`)].filter(Boolean).join(" — "))
+        .filter(Boolean)
+        .join("; ");
+      throw new EbayTransportError(`eBay server error ${res.status}${detail ? `: ${detail}` : ""}`, path);
+    }
     if (!res.ok) {
       const errors = ((data as { errors?: EbayErrorItem[] })?.errors ?? []) as EbayErrorItem[];
       throw new EbayApiError(res.status, errors, path);
@@ -65,8 +73,16 @@ export class EbayApi {
   }
 
   // ---- Inventory ----
-  putInventoryItem(sku: string, item: unknown) {
-    return this.call("PUT", `/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`, item);
+  /** PUT is idempotent, so a transient eBay 5xx is retried once before giving up. */
+  async putInventoryItem(sku: string, item: unknown) {
+    const path = `/sell/inventory/v1/inventory_item/${encodeURIComponent(sku)}`;
+    try {
+      return await this.call("PUT", path, item);
+    } catch (e) {
+      if (!(e instanceof EbayTransportError)) throw e;
+      await new Promise((r) => setTimeout(r, 1500));
+      return this.call("PUT", path, item);
+    }
   }
 
   async getOffers(sku: string): Promise<EbayOffer[]> {

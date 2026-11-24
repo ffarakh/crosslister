@@ -135,6 +135,8 @@ Rules:
 - Assume the item is BRAND NEW and SEALED unless the photos clearly show otherwise; write the title and description on that basis. If the photos clearly show it opened, used or damaged, say so instead and add an uncertainty.
 - The seller offers NO WARRANTY and NO RETURNS. Never state or imply a warranty, guarantee or returns. You may add a brief "No warranty, sold as new and sealed." line to the description.
 - If a barcode (EAN/UPC) or model number is legible, include it as an attribute so the exact product can be identified.
+- Read barcode digits carefully one by one from the printed numbers under the bars; if any digit is unclear, leave the barcode out and add an uncertainty. Name that attribute exactly "EAN/UPC".
+- Never add "Condition", price or quantity as attributes — those have their own fields.
 - PRICE: use web search to identify the exact product and find its current UK price as a NEW item — its RRP and what it currently sells for new on eBay UK and major UK retailers. Base price_estimate on those figures and name the sources (shops/sites) in the basis field. If you genuinely cannot find it, set price_estimate to null and say so in an uncertainty. Never guess a price without searching.`;
 
 export interface ImageInput {
