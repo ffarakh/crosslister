@@ -265,3 +265,9 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .manual-text { width: 100%; font: inherit; font-size: 0.9rem; margin: 0.5rem 0; resize: vertical; }
 .manual-thumbs { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.6rem; }
 .manual-thumbs img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+
+/* Condition badge on eBay comparison rows */
+.offers li.comp-row { grid-template-columns: 1fr auto auto auto; }
+.cond { font-size: 0.72rem; font-weight: 600; padding: 0.05rem 0.45rem; border-radius: 999px; white-space: nowrap; border: 1px solid; }
+.cond-new { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.cond-used { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); background: var(--warnbg); }

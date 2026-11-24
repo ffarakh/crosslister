@@ -354,6 +354,21 @@ function smartQuery(d: ListingDraft): string {
   return words.slice(0, 7).join(" ") || d.ai.itemType || "";
 }
 
+/** eBay's condition text, shortened for a compact badge (e.g. "New other (see details)" → "New (other)"). */
+function shortCondition(c: string): string {
+  const s = c.trim();
+  if (!s) return "—";
+  if (/^new with tags/i.test(s)) return "New w/ tags";
+  if (/^new without tags/i.test(s)) return "New no tags";
+  if (/^new with defects/i.test(s)) return "New (defects)";
+  if (/^new other|^opened/i.test(s)) return "New (other)";
+  if (/^new/i.test(s)) return "Brand new";
+  if (/refurb/i.test(s)) return "Refurbished";
+  if (/parts|not working/i.test(s)) return "For parts";
+  if (/^used|pre-owned/i.test(s)) return "Used";
+  return s.length > 14 ? s.slice(0, 13) + "…" : s;
+}
+
 function barcodeOf(d: ListingDraft): string {
   for (const [k, v] of Object.entries(d.shared.attributes)) {
     if (/ean|upc|gtin|barcode/i.test(k)) {
@@ -453,8 +468,11 @@ function PricingSection({ draft, onUsePrice }: { draft: ListingDraft; onUsePrice
                 </p>
                 <ul className="offers">
                   {comps.comps.slice(0, 6).map((c, i) => (
-                    <li key={i}>
+                    <li key={i} className="comp-row">
                       <a href={c.url} target="_blank" rel="noreferrer" title={c.title}>{c.title.slice(0, 42)}{c.title.length > 42 ? "…" : ""}</a>
+                      <span className={`cond ${/^new/i.test(c.condition) ? "cond-new" : "cond-used"}`} title={c.condition || "Condition not stated"}>
+                        {shortCondition(c.condition)}
+                      </span>
                       <span>{formatPence(c.pricePence)}</span>
                       <button className="link" onClick={() => onUsePrice(c.pricePence)}>use</button>
                     </li>
