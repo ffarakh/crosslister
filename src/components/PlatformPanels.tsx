@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import type { DeliveryMode, ListingDraft, Platform, PlatformSpecific } from "@/lib/listing/types";
 import type { Issue } from "@/lib/listing/validate";
+import { inferAspect } from "@/lib/listing/aspects";
 import { FieldShell } from "./Fields";
 
 type Update = (fn: (d: ListingDraft) => ListingDraft) => void;
@@ -43,25 +44,37 @@ export function EbayFieldsPanel({ draft, update, issues }: Props) {
     else setCats(j.categories);
   }
 
+  /** Fetch a category's required item specifics + allowed values, pre-add blanks and auto-fill what we can infer. */
+  async function loadAspects(categoryId: string, categoryPath: string) {
+    const j = await (await fetch(`/api/ebay/aspects?categoryId=${categoryId}`)).json();
+    if (j.error) return;
+    const required: string[] = j.required ?? [];
+    const values: Record<string, string[]> = j.values ?? {};
+    setFields(update, "ebay", { requiredAspects: required, aspectValues: values });
+    update((d) => {
+      const attrs = { ...d.shared.attributes };
+      for (const a of required) {
+        if (a.toLowerCase() === "brand") continue;
+        if (!(a in attrs)) attrs[a] = "";
+        if (!attrs[a]) {
+          const guess = inferAspect(a, categoryPath, values[a] ?? []);
+          if (guess) attrs[a] = guess;
+        }
+      }
+      return { ...d, shared: { ...d.shared, attributes: attrs } };
+    });
+  }
+
   async function choose(c: { id: string; name: string; path: string }) {
     setCats([]);
-    setFields(update, "ebay", { categoryId: c.id, categoryName: c.path, requiredAspects: [] });
-    const j = await (await fetch(`/api/ebay/aspects?categoryId=${c.id}`)).json();
-    if (!j.error) {
-      const required: string[] = j.required ?? [];
-      setFields(update, "ebay", { requiredAspects: required });
-      // Pre-add empty rows for required item specifics (except Brand, which has its own field)
-      // so the seller sees exactly what to fill instead of a late "eBay requires X" error.
-      update((d) => {
-        const attrs = { ...d.shared.attributes };
-        for (const a of required) {
-          if (a.toLowerCase() === "brand") continue;
-          if (!(a in attrs)) attrs[a] = "";
-        }
-        return { ...d, shared: { ...d.shared, attributes: attrs } };
-      });
-    }
+    setFields(update, "ebay", { categoryId: c.id, categoryName: c.path, requiredAspects: [], aspectValues: {} });
+    await loadAspects(c.id, c.path);
   }
+
+  // Items whose category was picked before allowed values were stored: load them once.
+  useEffect(() => {
+    if (f.categoryId && f.requiredAspects.length && !f.aspectValues) loadAspects(f.categoryId, f.categoryName);
+  }, [f.categoryId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const policySel = (key: "fulfillmentPolicyId" | "paymentPolicyId" | "returnPolicyId", label: string, opts: Opt[]) => (
     <FieldShell label={label} error={errOf(issues, key)}>
@@ -157,3 +170,4 @@ export function VintedFieldsPanel({ draft, update, issues }: Props) {
     </div>
   );
 }
+

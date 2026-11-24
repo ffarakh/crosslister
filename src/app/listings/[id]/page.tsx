@@ -155,14 +155,22 @@ export default function EditorPage({ params }: { params: Promise<{ id: string }>
             const over = !isShared && Object.prototype.hasOwnProperty.call(draft!.platforms[t as Platform].overrides.attributes ?? {}, name);
             const v = isShared ? draft!.shared.attributes[name] ?? "" : attrs[name] ?? "";
             const err = errFor(t, `attr:${name}`);
+            // eBay's allowed values for this item specific (if the chosen category defines them) → suggestion dropdown
+            const options = draft!.platforms.ebay.fields.aspectValues?.[name] ?? [];
+            const listId = options.length ? `opts-${t}-${name.replace(/[^a-z0-9]/gi, "")}` : undefined;
             return (
               <div key={name} className={`attr ${err ? "has-err" : ""}`}>
                 <span className="attr-name">{name}</span>
-                <input value={v} onChange={(e) => {
+                <input value={v} list={listId} placeholder={options.length ? "Pick or type…" : undefined} onChange={(e) => {
                   const nv = e.target.value;
                   if (isShared) update((d) => ({ ...d, shared: { ...d.shared, attributes: { ...d.shared.attributes, [name]: nv } }, ai: { ...d.ai, provenance: { ...d.ai.provenance, [`attr:${name}`]: "user" } } }));
                   else update((d) => setAttributeOverride(d, t as Platform, name, nv));
                 }} />
+                {listId && (
+                  <datalist id={listId}>
+                    {options.map((o) => <option key={o} value={o} />)}
+                  </datalist>
+                )}
                 {!over && <ProvBadge p={prov[`attr:${name}`]} onConfirm={() => confirm(`attr:${name}`)} />}
                 {isShared ? (
                   <button className="ghost" onClick={() => update((d) => { const a = { ...d.shared.attributes }; delete a[name]; const pv = { ...d.ai.provenance }; delete pv[`attr:${name}`]; return { ...d, shared: { ...d.shared, attributes: a }, ai: { ...d.ai, provenance: pv } }; })}>✕</button>

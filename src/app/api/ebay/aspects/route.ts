@@ -11,7 +11,11 @@ export async function GET(req: Request) {
     const id = new URL(req.url).searchParams.get("categoryId")?.trim();
     if (!id) throw new HttpError(400, "Missing categoryId");
     const api = new EbayApi(ebayConfig(), "");
-    return Response.json({ required: await api.requiredAspects(id) });
+    const details = await api.requiredAspectDetails(id);
+    return Response.json({
+      required: details.map((a) => a.name),
+      values: Object.fromEntries(details.map((a) => [a.name, a.values])),
+    });
   } catch (e) {
     return errorResponse(e);
   }

@@ -67,6 +67,7 @@ export interface EbayFields {
   categoryId: string;
   categoryName: string;
   requiredAspects: string[]; // names eBay marks aspectRequired for the chosen category
+  aspectValues?: Record<string, string[]>; // eBay's allowed/suggested values per required aspect
   fulfillmentPolicyId: string; // postage
   paymentPolicyId: string;
   returnPolicyId: string;

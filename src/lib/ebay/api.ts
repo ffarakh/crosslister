@@ -254,12 +254,29 @@ export class EbayApi {
   }
 
   async requiredAspects(categoryId: string) {
+    return (await this.requiredAspectDetails(categoryId)).map((a) => a.name);
+  }
+
+  /** Required item specifics for a category, with eBay's allowed/suggested values. */
+  async requiredAspectDetails(categoryId: string): Promise<{ name: string; values: string[]; freeText: boolean }[]> {
     const tree = await this.categoryTreeId();
-    type A = { aspects?: { localizedAspectName: string; aspectConstraint?: { aspectRequired?: boolean } }[] };
+    type A = {
+      aspects?: {
+        localizedAspectName: string;
+        aspectConstraint?: { aspectRequired?: boolean; aspectMode?: string };
+        aspectValues?: { localizedValue: string }[];
+      }[];
+    };
     const d = await this.appCall<A>(
       `/commerce/taxonomy/v1/category_tree/${tree}/get_item_aspects_for_category?category_id=${encodeURIComponent(categoryId)}`,
     );
-    return (d.aspects ?? []).filter((a) => a.aspectConstraint?.aspectRequired).map((a) => a.localizedAspectName);
+    return (d.aspects ?? [])
+      .filter((a) => a.aspectConstraint?.aspectRequired)
+      .map((a) => ({
+        name: a.localizedAspectName,
+        values: (a.aspectValues ?? []).map((v) => v.localizedValue).slice(0, 200),
+        freeText: a.aspectConstraint?.aspectMode !== "SELECTION_ONLY",
+      }));
   }
 }
 
