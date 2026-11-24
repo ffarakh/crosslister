@@ -132,6 +132,14 @@ export class EbayApi {
     });
   }
 
+  /** Correct the address of an existing location (e.g. a postcode saved in the wrong format). */
+  updateLocation(key: string, postalCode: string, name: string) {
+    return this.call("POST", `/sell/inventory/v1/location/${encodeURIComponent(key)}/update_location_details`, {
+      location: { address: { postalCode, country: "GB" } },
+      name,
+    });
+  }
+
   // ---- Account (business policies) ----
   async listPolicies() {
     const q = `?marketplace_id=${EBAY_MARKETPLACE}`;
